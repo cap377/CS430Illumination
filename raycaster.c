@@ -6,21 +6,31 @@
 
 // OBJECT STRUCTURE THAT ALLOWS FOR ALL 3 OBJECTS
 typedef struct {
-  int kind; // 0 = camera, 1 = sphere, 2 = plane
-  double color[3];
+  int kind; // 0 = camera, 1 = sphere, 2 = plane, 3 = light
   union {
     struct {
       double width;
       double height;
     } camera;
     struct {
+			double diffuse_color[3];
+			double specular_color[3];
       double position[3];
       double radius;
     } sphere;
     struct {
+			double diffuse_color[3];
       double position[3];
       double normal[3];
     } plane;
+		struct {
+			double color[3];
+			double theta;
+			double radial_a2;
+			double radial_a1;
+			double radial_a0;
+			double position[3];
+		}
   };
 } Object;
 
@@ -186,6 +196,9 @@ void read_scene(char* filename) {
       } else if (strcmp(value, "plane") == 0) {
 				(*object_array[obj]).kind = 2;
 				printf("Found plane\n");
+      } else if (strcmp(value, "light") == 0) {
+				(*object_array[obj]).kind = 3;
+				printf("Found light\n");
       } else {
 				fprintf(stderr, "Error: Unknown type, \"%s\", on line number %d.\n", value, line);
 				exit(1);
@@ -194,24 +207,28 @@ void read_scene(char* filename) {
       skip_ws(json);
 
       while (1) {
-		c = next_c(json);
-		if (c == '}') {
-	  	// stop parsing this object
-	  		//object_array[obj] = &new;
-			obj++;
-	  		break;
-	  } else if (c == ',') {
-	  	// read another field
-		  skip_ws(json);
-		  char* key = next_string(json);
-		  skip_ws(json);
-		  expect_c(json, ':');
-		  skip_ws(json);
-			// BUILDING OBJECT DOUBLE FIELDS
-	  	if ((strcmp(key, "width") == 0) ||
-	      (strcmp(key, "height") == 0) ||
-	      (strcmp(key, "radius") == 0)) {
-	    	double value = next_number(json);
+				c = next_c(json);
+				if (c == '}') {
+	  			// stop parsing this object
+	  				//object_array[obj] = &new;
+					obj++;
+	  			break;
+	  		} else if (c == ',') {
+	  			// read another field
+		  		skip_ws(json);
+		  		char* key = next_string(json);
+		  		skip_ws(json);
+		  		expect_c(json, ':');
+		  		skip_ws(json);
+					// BUILDING OBJECT DOUBLE FIELDS
+	  			if ((strcmp(key, "width") == 0) ||
+					  (strcmp(key, "height") == 0) ||
+					  (strcmp(key, "radius") == 0) ||
+						(strcmp(key, "theta") == 0) ||
+						(strcmp(key, "radial-a0") == 0) ||
+						(strcmp(key, "radial-a1") == 0) ||
+						(strcmp(key, "radial-a2") == 0)) {
+						double value = next_number(json);
 			if(strcmp(key, "width") == 0){
 				if((*object_array[obj]).kind == 0) (*object_array[obj]).camera.width = value;
 			}
@@ -221,15 +238,30 @@ void read_scene(char* filename) {
 			else if(strcmp(key, "radius") == 0){
 				(*object_array[obj]).sphere.radius = value;
 			}
+			else if(strcmp(key, "theta") == 0){
+				if((*object_array[obj]).kind == 3) (*object_array[obj]).light.theta = value;
+			}
+			else if(strcmp(key, "radial-a0") == 0){
+				if((*object_array[obj]).kind == 3) (*object_array[obj]).light.radial_a0 = value;
+			}
+			else if(strcmp(key, "radial-a1") == 0){
+				if((*object_array[obj]).kind == 3) (*object_array[obj]).light.radial_a1 = value;
+			}
+			else if(strcmp(key, "radial-a2") == 0){
+				if((*object_array[obj]).kind == 3) (*object_array[obj]).light.radial_a2 = value;
+			}
 			// BUILDING OBJECT VECTOR FIELDS
 	  	} else if ((strcmp(key, "color") == 0) ||
-		     (strcmp(key, "position") == 0) ||
-		     (strcmp(key, "normal") == 0)) {
-	    	double* value = next_vector(json);
+		    	(strcmp(key, "position") == 0) ||
+		    	(strcmp(key, "normal") == 0) ||
+					(strcmp(key, "diffuse_color") == 0) ||
+					(strcmp(key, "specular_color") == 0)) {
+	    		double* value = next_vector(json);
 			if(strcmp(key, "color") == 0){
-				(*object_array[obj]).color[0] = value[0];
-				(*object_array[obj]).color[1] = value[1];
-				(*object_array[obj]).color[2] = value[2];
+				if((*object_array[obj]).kind == 3){
+					(*object_array[obj]).light.color[0] = value[0];
+					(*object_array[obj]).light.color[1] = value[1];
+					(*object_array[obj]).light.color[2] = value[2];
 			}
 			else if(strcmp(key, "position") == 0){
 				if((*object_array[obj]).kind == 1){
@@ -242,11 +274,40 @@ void read_scene(char* filename) {
 					(*object_array[obj]).plane.position[1] = value[1];
 					(*object_array[obj]).plane.position[2] = value[2];
 				}
+				else if((*object_array[obj]).kind == 3){
+					(*object_array[obj]).light.position[0] = value[0];
+					(*object_array[obj]).light.position[1] = value[1];
+					(*object_array[obj]).light.position[2] = value[2];
+				}
 			}
 			else if(strcmp(key, "normal") == 0){
 				(*object_array[obj]).plane.normal[0] = value[0];
 				(*object_array[obj]).plane.normal[1] = value[1];
 				(*object_array[obj]).plane.normal[2] = value[2];
+			}
+			else if(strcmp(key, "diffuse_color") == 0){
+				if((*object_array[obj]).kind == 1){
+					(*object_array[obj]).sphere.diffuse_color[0] = value[0];
+					(*object_array[obj]).sphere.diffuse_color[1] = value[1];
+					(*object_array[obj]).sphere.diffuse_color[2] = value[2];
+				}
+				else if((*object_array[obj]).kind == 2){
+					(*object_array[obj]).plane.diffuse_color[0] = value[0];
+					(*object_array[obj]).plane.diffuse_color[1] = value[1];
+					(*object_array[obj]).plane.diffuse_color[2] = value[2];
+				}
+			}
+			else if(strcmp(key, "specular_color") == 0){
+				if((*object_array[obj]).kind == 1){
+					(*object_array[obj]).sphere.specular_color[0] = value[0];
+					(*object_array[obj]).sphere.specular_color[1] = value[1];
+					(*object_array[obj]).sphere.specular_color[2] = value[2];
+				}
+				else if((*object_array[obj]).kind == 2){
+					(*object_array[obj]).plane.specular_color[0] = value[0];
+					(*object_array[obj]).plane.specular_color[1] = value[1];
+					(*object_array[obj]).plane.specular_color[2] = value[2];
+				}
 			}
 		// ERROR CHECK
 	  } else {
