@@ -7,30 +7,34 @@
 // OBJECT STRUCTURE THAT ALLOWS FOR ALL 3 OBJECTS
 typedef struct {
   int kind; // 0 = camera, 1 = sphere, 2 = plane, 3 = light
+  double ns;
   union {
     struct {
-      double width;
-      double height;
+    	double width;
+    	double height;
     } camera;
     struct {
-			double diffuse_color[3];
-			double specular_color[3];
-      double position[3];
-      double radius;
+		double diffuse_color[3];
+		double specular_color[3];
+     	double position[3];
+     	double radius;
     } sphere;
     struct {
-			double diffuse_color[3];
-      double position[3];
-      double normal[3];
+		double diffuse_color[3];
+		double specular_color[3];
+     	double position[3];
+    	double normal[3];
     } plane;
-		struct {
-			double color[3];
-			double theta;
-			double radial_a2;
-			double radial_a1;
-			double radial_a0;
-			double position[3];
-		}
+	struct {
+		double color[3];
+		double theta;
+		double radial_a2;
+		double radial_a1;
+		double radial_a0;
+		double angular_a0;
+		double position[3];
+		double direction[3];
+	} light;
   };
 } Object;
 
@@ -43,7 +47,9 @@ typedef struct Pixel{
 
 // OBJECT ARRAY TO READ FROM JSON FILE INTO
 Object* object_array[128];
+Object* lights[128];
 int obj = 0;
+int light = 0;
 int line = 1;
 
 // next_c() wraps the getc() function and provides error checking and line
@@ -161,7 +167,7 @@ void read_scene(char* filename) {
   // Find the objects
 
   while (1) {
-    c = fgetc(json);
+  	c = fgetc(json);
     if (c == ']') {
       fprintf(stderr, "Error: This is the worst scene file EVER.\n");
       fclose(json);
@@ -185,8 +191,8 @@ void read_scene(char* filename) {
 
       char* value = next_string(json);
   	  object_array[obj] = malloc(sizeof(Object));
-	  	Object new;
-			// IDENTIFYING OBJECT TYPES AND BUILDING OBJECT
+	  lights[light] = malloc(sizeof(Object));
+	  // IDENTIFYING OBJECT TYPES AND BUILDING OBJECT
       if (strcmp(value, "camera") == 0) {
 				(*object_array[obj]).kind = 0;
 				printf("Found camera\n");
@@ -198,6 +204,7 @@ void read_scene(char* filename) {
 				printf("Found plane\n");
       } else if (strcmp(value, "light") == 0) {
 				(*object_array[obj]).kind = 3;
+				(*lights[light]).kind = 3;
 				printf("Found light\n");
       } else {
 				fprintf(stderr, "Error: Unknown type, \"%s\", on line number %d.\n", value, line);
@@ -207,146 +214,255 @@ void read_scene(char* filename) {
       skip_ws(json);
 
       while (1) {
-				c = next_c(json);
-				if (c == '}') {
-	  			// stop parsing this object
-	  				//object_array[obj] = &new;
-					obj++;
-	  			break;
-	  		} else if (c == ',') {
-	  			// read another field
-		  		skip_ws(json);
-		  		char* key = next_string(json);
-		  		skip_ws(json);
-		  		expect_c(json, ':');
-		  		skip_ws(json);
-					// BUILDING OBJECT DOUBLE FIELDS
-	  			if ((strcmp(key, "width") == 0) ||
-					  (strcmp(key, "height") == 0) ||
-					  (strcmp(key, "radius") == 0) ||
-						(strcmp(key, "theta") == 0) ||
-						(strcmp(key, "radial-a0") == 0) ||
-						(strcmp(key, "radial-a1") == 0) ||
-						(strcmp(key, "radial-a2") == 0)) {
-						double value = next_number(json);
-			if(strcmp(key, "width") == 0){
-				if((*object_array[obj]).kind == 0) (*object_array[obj]).camera.width = value;
+		c = next_c(json);
+		if (c == '}') {
+	  		// stop parsing this object
+	  		//object_array[obj] = &new;
+			obj++;
+			if((*object_array[obj-1]).kind == 3){
+				light++;					
 			}
-			else if(strcmp(key, "height") == 0){
-				if((*object_array[obj]).kind == 0) (*object_array[obj]).camera.height = value;
-			}
-			else if(strcmp(key, "radius") == 0){
-				(*object_array[obj]).sphere.radius = value;
-			}
-			else if(strcmp(key, "theta") == 0){
-				if((*object_array[obj]).kind == 3) (*object_array[obj]).light.theta = value;
-			}
-			else if(strcmp(key, "radial-a0") == 0){
-				if((*object_array[obj]).kind == 3) (*object_array[obj]).light.radial_a0 = value;
-			}
-			else if(strcmp(key, "radial-a1") == 0){
-				if((*object_array[obj]).kind == 3) (*object_array[obj]).light.radial_a1 = value;
-			}
-			else if(strcmp(key, "radial-a2") == 0){
-				if((*object_array[obj]).kind == 3) (*object_array[obj]).light.radial_a2 = value;
-			}
-			// BUILDING OBJECT VECTOR FIELDS
-	  	} else if ((strcmp(key, "color") == 0) ||
+	  		break;
+	  	} else if (c == ',') {
+	  		// read another field
+			skip_ws(json);
+			char* key = next_string(json);
+		  	skip_ws(json);
+		  	expect_c(json, ':');
+		  	skip_ws(json);
+			// BUILDING OBJECT DOUBLE FIELDS
+	  		if ((strcmp(key, "width") == 0) ||
+				(strcmp(key, "height") == 0) ||
+				(strcmp(key, "radius") == 0) ||
+				(strcmp(key, "theta") == 0) ||
+				(strcmp(key, "radial-a0") == 0) ||
+				(strcmp(key, "radial-a1") == 0) ||
+				(strcmp(key, "radial-a2") == 0)) {
+				double value = next_number(json);
+				if(strcmp(key, "width") == 0){
+					if((*object_array[obj]).kind == 0) (*object_array[obj]).camera.width = value;
+				}
+				else if(strcmp(key, "height") == 0){
+					if((*object_array[obj]).kind == 0) (*object_array[obj]).camera.height = value;
+				}
+				else if(strcmp(key, "radius") == 0){
+					(*object_array[obj]).sphere.radius = value;
+				}
+				else if(strcmp(key, "theta") == 0){
+					if((*object_array[obj]).kind == 3) {
+						(*object_array[obj]).light.theta = value;
+						(*lights[light]).light.theta = value;
+					}
+				}
+				else if(strcmp(key, "radial-a0") == 0){
+					if((*object_array[obj]).kind == 3) {
+						(*object_array[obj]).light.radial_a0 = value;
+						(*lights[light]).light.radial_a0 = value;
+					}
+				}
+				else if(strcmp(key, "radial-a1") == 0){
+					if((*object_array[obj]).kind == 3) {
+						(*object_array[obj]).light.radial_a1 = value;
+						(*lights[light]).light.radial_a1 = value;
+					}
+				}
+				else if(strcmp(key, "radial-a2") == 0){
+					if((*object_array[obj]).kind == 3) {
+						(*object_array[obj]).light.radial_a2 = value;
+						(*lights[light]).light.radial_a2 = value;
+					}
+				}
+				// BUILDING OBJECT VECTOR FIELDS
+	  		} else if ((strcmp(key, "color") == 0) ||
 		    	(strcmp(key, "position") == 0) ||
 		    	(strcmp(key, "normal") == 0) ||
-					(strcmp(key, "diffuse_color") == 0) ||
-					(strcmp(key, "specular_color") == 0)) {
+				(strcmp(key, "diffuse_color") == 0) ||
+				(strcmp(key, "specular_color") == 0)) {
 	    		double* value = next_vector(json);
-			if(strcmp(key, "color") == 0){
-				if((*object_array[obj]).kind == 3){
-					(*object_array[obj]).light.color[0] = value[0];
-					(*object_array[obj]).light.color[1] = value[1];
-					(*object_array[obj]).light.color[2] = value[2];
-			}
-			else if(strcmp(key, "position") == 0){
-				if((*object_array[obj]).kind == 1){
-					(*object_array[obj]).sphere.position[0] = value[0];
-					(*object_array[obj]).sphere.position[1] = value[1];
-					(*object_array[obj]).sphere.position[2] = value[2];
+				if(strcmp(key, "color") == 0){
+					if((*object_array[obj]).kind == 3){
+						(*object_array[obj]).light.color[0] = value[0];
+						(*object_array[obj]).light.color[1] = value[1];
+						(*object_array[obj]).light.color[2] = value[2];
+
+						(*lights[light]).light.color[0] = value[0];
+						(*lights[light]).light.color[1] = value[1];
+						(*lights[light]).light.color[2] = value[2];
+					}
 				}
-				else if((*object_array[obj]).kind == 2){
-					(*object_array[obj]).plane.position[0] = value[0];
-					(*object_array[obj]).plane.position[1] = value[1];
-					(*object_array[obj]).plane.position[2] = value[2];
+				else if(strcmp(key, "position") == 0){
+					if((*object_array[obj]).kind == 1){
+						(*object_array[obj]).sphere.position[0] = value[0];
+						(*object_array[obj]).sphere.position[1] = value[1];
+						(*object_array[obj]).sphere.position[2] = value[2];
+					}
+					else if((*object_array[obj]).kind == 2){
+						(*object_array[obj]).plane.position[0] = value[0];
+						(*object_array[obj]).plane.position[1] = value[1];
+						(*object_array[obj]).plane.position[2] = value[2];
+					}
+					else if((*object_array[obj]).kind == 3){
+						(*object_array[obj]).light.position[0] = value[0];
+						(*object_array[obj]).light.position[1] = value[1];
+						(*object_array[obj]).light.position[2] = value[2];
+
+						(*lights[light]).light.position[0] = value[0];
+						(*lights[light]).light.position[1] = value[1];
+						(*lights[light]).light.position[2] = value[2];
+					}
 				}
-				else if((*object_array[obj]).kind == 3){
-					(*object_array[obj]).light.position[0] = value[0];
-					(*object_array[obj]).light.position[1] = value[1];
-					(*object_array[obj]).light.position[2] = value[2];
+				else if(strcmp(key, "normal") == 0){
+					(*object_array[obj]).plane.normal[0] = value[0];
+					(*object_array[obj]).plane.normal[1] = value[1];
+					(*object_array[obj]).plane.normal[2] = value[2];
 				}
-			}
-			else if(strcmp(key, "normal") == 0){
-				(*object_array[obj]).plane.normal[0] = value[0];
-				(*object_array[obj]).plane.normal[1] = value[1];
-				(*object_array[obj]).plane.normal[2] = value[2];
-			}
-			else if(strcmp(key, "diffuse_color") == 0){
-				if((*object_array[obj]).kind == 1){
-					(*object_array[obj]).sphere.diffuse_color[0] = value[0];
-					(*object_array[obj]).sphere.diffuse_color[1] = value[1];
-					(*object_array[obj]).sphere.diffuse_color[2] = value[2];
+				else if(strcmp(key, "diffuse_color") == 0){
+					if((*object_array[obj]).kind == 1){
+						(*object_array[obj]).sphere.diffuse_color[0] = value[0];
+						(*object_array[obj]).sphere.diffuse_color[1] = value[1];
+						(*object_array[obj]).sphere.diffuse_color[2] = value[2];
+					}
+					else if((*object_array[obj]).kind == 2){
+						(*object_array[obj]).plane.diffuse_color[0] = value[0];
+						(*object_array[obj]).plane.diffuse_color[1] = value[1];
+						(*object_array[obj]).plane.diffuse_color[2] = value[2];
+					}
 				}
-				else if((*object_array[obj]).kind == 2){
-					(*object_array[obj]).plane.diffuse_color[0] = value[0];
-					(*object_array[obj]).plane.diffuse_color[1] = value[1];
-					(*object_array[obj]).plane.diffuse_color[2] = value[2];
+				else if(strcmp(key, "specular_color") == 0){
+					if((*object_array[obj]).kind == 1){
+						(*object_array[obj]).sphere.specular_color[0] = value[0];
+						(*object_array[obj]).sphere.specular_color[1] = value[1];
+						(*object_array[obj]).sphere.specular_color[2] = value[2];
+					}
+					else if((*object_array[obj]).kind == 2){
+						(*object_array[obj]).plane.specular_color[0] = value[0];
+						(*object_array[obj]).plane.specular_color[1] = value[1];
+						(*object_array[obj]).plane.specular_color[2] = value[2];
+					}
 				}
-			}
-			else if(strcmp(key, "specular_color") == 0){
-				if((*object_array[obj]).kind == 1){
-					(*object_array[obj]).sphere.specular_color[0] = value[0];
-					(*object_array[obj]).sphere.specular_color[1] = value[1];
-					(*object_array[obj]).sphere.specular_color[2] = value[2];
+				else if(strcmp(key, "direction") == 0){
+					if((*object_array[obj]).kind == 3){
+						(*object_array[obj]).light.direction[0] = value[0];
+						(*object_array[obj]).light.direction[1] = value[1];
+						(*object_array[obj]).light.direction[2] = value[2];
+
+						(*lights[light]).light.direction[0] = value[0];
+						(*lights[light]).light.direction[1] = value[1];
+						(*lights[light]).light.direction[2] = value[2];
+					}
 				}
-				else if((*object_array[obj]).kind == 2){
-					(*object_array[obj]).plane.specular_color[0] = value[0];
-					(*object_array[obj]).plane.specular_color[1] = value[1];
-					(*object_array[obj]).plane.specular_color[2] = value[2];
-				}
-			}
-		// ERROR CHECK
-	  } else {
-	    fprintf(stderr, "Error: Unknown property, \"%s\", on line %d.\n",
-		    key, line);
-	    //char* value = next_string(json);
-	  }
-	  skip_ws(json);
-	} else {
-	  fprintf(stderr, "Error: Unexpected value on line %d\n", line);
-	  exit(1);
+				// ERROR CHECK
+	 		 } else {
+	   			 fprintf(stderr, "Error: Unknown property, \"%s\", on line %d.\n",
+		   		 key, line);
+	   			 //char* value = next_string(json);
+	 		 }
+	 		 (*object_array[obj]).ns = 20.0;
+	 		 if ((*object_array[obj]).kind == 3 && (*object_array[obj]).light.theta == 0){
+				(*object_array[obj]).light.theta = 0;
+				(*lights[light]).light.theta = 0;
+	  		}
+	  		if ((*object_array[obj]).kind == 3 && (*object_array[obj]).light.angular_a0 == 0){
+				(*object_array[obj]).light.angular_a0 = 0;
+				(*lights[light]).light.angular_a0 = 0;
+	 		 }
+	 		 skip_ws(json);
+		} else {
+	 		 fprintf(stderr, "Error: Unexpected value on line %d\n", line);
+	 		 exit(1);
+		}
 	}
-      }
-      skip_ws(json);
-      c = next_c(json);
-      if (c == ',') {
-	// noop
-	skip_ws(json);
-      } else if (c == ']') {
-	fclose(json);
-	object_array[obj] = NULL;
-	return;
-      } else {
-	fprintf(stderr, "Error: Expecting ',' or ']' on line %d.\n", line);
-	exit(1);
-      }
+    skip_ws(json);
+    c = next_c(json);
+    if (c == ',') {
+		// noop
+		skip_ws(json);
+    } else if (c == ']') {
+		fclose(json);
+		object_array[obj] = NULL;
+		return;
+    } else {
+		fprintf(stderr, "Error: Expecting ',' or ']' on line %d.\n", line);
+		exit(1);
+    }
     }
   }
 }
+
 
 ///////////////////////////////////////////////////////////////
 // BEGINNING OF RAYCASTING FUNCTION
 ///////////////////////////////////////////////////////////////
 
-static inline double sqr(double v) {
+double sqr(double v) {
   return v*v;
 }
 
-static inline void normalize(double* v) {
+double dot(double* a, double* b) {
+	double result;
+	result = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+	return result;
+}
+
+double* diffuse(double* Kd, double* Il, double* N, double* L){
+	double* diff;
+	double dot1 = N[0]*L[0] + N[1]*L[1] + N[2]*L[2];
+	if (dot > 0){
+		diff[0] = dot1*Kd[0]*Il[0];
+		diff[1] = dot1*Kd[1]*Il[1];
+		diff[2] = dot1*Kd[2]*Il[2];
+		return diff;
+	}
+	else {
+		diff[0] = 0;
+		diff[1] = 0;
+		diff[2] = 0;
+		return diff;
+	}
+}
+
+double* specular(double* Ks, double* Il, double* V, double* R, double* N, double* L){
+	double dot1 = dot(V,R);
+	double dot2 = dot(N,L);
+	double* result;
+	if (dot1 > 0 && dot2 > 0) {
+		result[0] = pow(dot1,20)*Ks[0]*Il[0];
+		result[1] = pow(dot1,20)*Ks[1]*Il[1];
+		result[2] = pow(dot1,20)*Ks[2]*Il[2];
+		return result;
+	}
+	else {
+		result[0] = 0;
+		result[1] = 0;
+		result[2] = 0;
+		return result;
+	}
+}
+
+double frad(double* r, double d){
+	double determinant = ((r[0] * sqr(d)) + (r[1] * d) + r[2]);
+	if (determinant == 0) {
+		return 0;
+	}
+	else{
+		return 1/determinant;
+	}
+}
+
+double fang(double a, double t, double* Rdn, double* direction){
+	if (direction[0] == 0 && direction[1] == 0 && direction[2] == 0){
+		return 1;
+	}
+	double value = dot(Rdn, direction);
+	if (value < cos(t)) {
+		return 0;
+	}
+	else {
+		return pow(value, a);
+	}
+}
+
+void normalize(double* v) {
   double len = sqrt(sqr(v[0]) + sqr(v[1]) + sqr(v[2]));
   v[0] /= len;
   v[1] /= len;
@@ -450,6 +566,16 @@ double plane_intersection(double* Ro, double* Rd,
 	return dot1/dot2;
 }
 
+double clamp(double num){
+	if (num < 0){
+		num = 0;
+	}
+	else if (num > 1) {
+		num = 1;
+	}
+	return num;
+}
+
 int main(int argc, char **argv) {
 
 	// OPEN FILE
@@ -469,81 +595,208 @@ int main(int argc, char **argv) {
 	while(1){
 		if (object_array[i]->kind == 0){
 			w = object_array[i]->camera.width;
-  		h = object_array[i]->camera.height;
+  			h = object_array[i]->camera.height;
 			printf("Camera found and variables set.\n");
 			break;
 		}
 		i++;
 	}
-  
+  	
 	double cx = 0;
-  double cy = 0;
+  	double cy = 0;
 
-  int M = atoi(argv[2]);
-  int N = atoi(argv[1]);
+	double d_color[3];
+	double s_color[3];
 
-  double pixheight = h / M;
-  double pixwidth = w / N;
+  	int M = atoi(argv[2]);
+  	int N = atoi(argv[1]);
+
+  	double pixheight = h / M;
+  	double pixwidth = w / N;
+
+	int best;
 
 	// HOLDER VARIABLE FOR CLOSEST OBJECTS COLOR
 	double* color;
-	
 	// DECREMENTING Y COMPONENT TO FLIP PICTURE 
 	for (int y = M; y > 0; y--) {
-    for (int x = 0; x < N; x += 1) {
-      double Ro[3] = {0, 0, 0};
-      // Rd = normalize(P - Ro)
-      double Rd[3] = {
+    	for (int x = 0; x < N; x += 1) {
+      		double Ro[3] = {0, 0, 0};
+      		// Rd = normalize(P - Ro)
+      		double Rd[3] = {
 				cx - (w/2) + pixwidth * (x + 0.5),
 				cy - (h/2) + pixheight * (y + 0.5),
-				1
-      };
-      normalize(Rd);
-      double best_t = INFINITY;
-      for (int i=0; object_array[i] != 0; i++) {
+				1};
+      		normalize(Rd);
+      		double best_t = INFINITY;
+      		for (int i=0; i < obj; i++) {
 				//printf("in loop\n");
 				double t = 0;
 				switch(object_array[i]->kind) {
-				case 0:
-	  			// pass, its a camera
-	  			break;
-				case 1:
-					// CHECK INTERSECTION FOR SPHERE
-	  			t = sphere_intersection(Ro, Rd,
-				    	object_array[i]->sphere.position,
-				    	object_array[i]->sphere.radius);
-	  			break;
-				case 2:
-					// CHECK INTERSECTION FOR PLANE
-	  			t = plane_intersection(Ro, Rd,
-				    	object_array[i]->plane.position,
-				    	object_array[i]->plane.normal);
-	  			break;
-				default:
-	  			// Horrible error
-	  			exit(1);
+					//printf("finding best object\n");
+					case 0:
+	  					// pass, its a camera
+	  					break;
+					case 1:
+						// CHECK INTERSECTION FOR SPHERE
+	  					t = sphere_intersection(Ro, Rd,
+			    			object_array[i]->sphere.position,
+			    			object_array[i]->sphere.radius);
+	  						break;
+					case 2:
+						// CHECK INTERSECTION FOR PLANE
+	  					t = plane_intersection(Ro, Rd,
+			    			object_array[i]->plane.position,
+			    			object_array[i]->plane.normal);
+  						break;
+  					case 3:
+						// pass, its a light
+  						break;
+					default:
+	 					// Horrible error
+	 					exit(1);
 				}
+				t = sqrt(t*t);
+				//printf("t = %lf\n", t);
 				if (t > 0 && t < best_t) {
+					//printf("best t\n");
 					best_t = t;
 					// SET COLOR TO CLOSEST OBJECTS COLOR
-					color = object_array[i]->color;
+					//color = object_array[i]->color;
+					//printf("color stuff\n");
+					best = i;
+					if (object_array[best]->kind == 1){
+						d_color[0] = object_array[best]->sphere.diffuse_color[0];
+						d_color[1] = object_array[best]->sphere.diffuse_color[1];
+						d_color[2] = object_array[best]->sphere.diffuse_color[2];
+					}
+					if (object_array[best]->kind == 2){
+						d_color[0] = object_array[best]->plane.diffuse_color[0];
+						d_color[1] = object_array[best]->plane.diffuse_color[1];
+						d_color[2] = object_array[best]->plane.diffuse_color[2];
+					}
+					if (object_array[best]->kind == 1){
+						s_color[0] = object_array[best]->sphere.specular_color[0];
+						s_color[1] = object_array[best]->sphere.specular_color[1];
+						s_color[2] = object_array[best]->sphere.specular_color[2];
+					}
+					if (object_array[best]->kind == 2){
+						s_color[0] = object_array[best]->plane.specular_color[0];
+						s_color[1] = object_array[best]->plane.specular_color[1];
+						s_color[2] = object_array[best]->plane.specular_color[2];
+					}
+					//printf("color stuff end\n");
 				}
+				//printf("leaving i: %i\n", i);
 			}
-			// CREATING A PIXEL
-			Pixel new;
-    	if (best_t > 0 && best_t != INFINITY) {
-				// SETTING PIXELS COLOR TO CLOSEST OBJECTS COLOR
-				new.red = color[0];
-				new.green = color[1];
-				new.blue = color[2];
-				// WRITING TO FILE IMMEDIATELY
-				fprintf(output, "%i %i %i ", new.red, new.green, new.blue);
-    	} else {
-				// OTHERWISE ITS AN EMPTY PIXEL, DEFAULT BLACK
-				fprintf(output, "0 0 0 ");
-    	}
-    }
-  }
-  fclose(output);
-  return 0;
+				
+			
+			int l = 0;
+			double ron[3];
+			double rdn[3];
+			double distance;
+			for (l = 0; l < light; l++){
+				//printf("looping lights\n");
+				ron[0] = best_t*Rd[0]+Ro[0];
+				ron[1] = best_t*Rd[1]+Ro[1];
+				ron[2] = best_t*Rd[2]+Ro[2];
+				rdn[0] = (lights[l]->light.position[0])-ron[0];
+				rdn[1] = (lights[l]->light.position[1])-ron[1];
+				rdn[2] = (lights[l]->light.position[2])-ron[2];
+				distance = sqrt(rdn[0]*rdn[0] + rdn[1]*rdn[1] + rdn[2]*rdn[2]);
+				double closest_shadow = 0;
+				int k;
+				for (k=0; object_array[k] != 0; k++) {
+					//printf("in loop\n");
+					double t = 0;
+					switch(object_array[k]->kind) {
+						case 0:
+						// pass, its a camera
+		  				break;
+						case 1:
+						// CHECK INTERSECTION FOR SPHERE
+		  				t = sphere_intersection(ron, rdn,
+							object_array[k]->sphere.position,
+							object_array[k]->sphere.radius);
+		  				break;
+						case 2:
+						// CHECK INTERSECTION FOR PLANE
+		  				t = plane_intersection(ron, rdn,
+							object_array[k]->plane.position,
+							object_array[k]->plane.normal);
+		  				break;
+						case 3:
+						//pass, its another light
+		  				break;
+						default:
+		  				// Horrible error
+		  				exit(1);
+						}
+						if (t > distance || t < 0) {
+							continue;
+						}
+						closest_shadow = 1;
+					}
+					if (closest_shadow == 0){
+						double* N;
+		        		double* L;
+		        		double* R;
+		        		double* V;
+		        		double* Kd;
+						double* Ks;
+					
+						if (object_array[best]->kind == 1) {
+							N[0] = ron[0]-object_array[best]->sphere.position[0];
+							N[1] = ron[1]-object_array[best]->sphere.position[1];
+							N[2] = ron[2]-object_array[best]->sphere.position[2];
+						}
+						else if(object_array[best]->kind == 2) {
+							N[0] = object_array[best]->plane.normal[0];
+							N[1] = object_array[best]->plane.normal[1];
+							N[2] = object_array[best]->plane.normal[2];
+						}
+						N[0] = sqrt(N[0]*N[0]);
+						N[1] = sqrt(N[1]*N[1]);
+						N[2] = sqrt(N[2]*N[2]);
+						L = rdn;
+						R[0] = (2 * dot(L,N) * N[0]) - L[0];
+						R[1] = (2 * dot(L,N) * N[1]) - L[1];
+						R[2] = (2 * dot(L,N) * N[2]) - L[2];
+						V[0] = -Rd[0];
+						V[1] = -Rd[1];
+						V[2] = -Rd[2];
+						Kd = diffuse(d_color, lights[k]->light.color, N, L);
+						Ks = specular(s_color, lights[k]->light.color, V, R, N, L);
+
+
+						double* radial;
+						radial[0] = lights[k]->light.radial_a0;
+						radial[1] = lights[k]->light.radial_a1;
+						radial[2] = lights[k]->light.radial_a2;
+						color[0] = frad(radial, distance) * fang(lights[k]->light.angular_a0, lights[k]->light.theta, L, lights[k]->light.direction) * (Kd[0] + Ks[0]);
+						color[1] = frad(radial, distance) * fang(lights[k]->light.angular_a0, lights[k]->light.theta, L, lights[k]->light.direction) * (Kd[1] + Ks[1]);
+						color[2] = frad(radial, distance) * fang(lights[k]->light.angular_a0, lights[k]->light.theta, L, lights[k]->light.direction) * (Kd[2] + Ks[2]);
+					}
+				
+				}
+
+				// CREATING A PIXEL
+				Pixel new;
+				//printf("making pixel\n");
+    			if (best_t > 0 && best_t != INFINITY) {
+					// SETTING PIXELS COLOR TO CLOSEST OBJECTS COLOR
+					new.red = color[0];
+					new.green = color[1];
+					new.blue = color[2];
+					// WRITING TO FILE IMMEDIATELY
+					printf("plsss");
+					fprintf(output, "%i %i %i ", new.red, new.green, new.blue);
+    			} else {
+					// OTHERWISE ITS AN EMPTY PIXEL, DEFAULT BLACK
+					fprintf(output, "0 0 0 ");
+    			}
+    		}
+  		}
+  	fclose(output);
+  	return 0;
 }
